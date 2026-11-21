@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>eTextPad</title>
+<meta name="description" content="eTextPad: a fast, private online notepad with shareable note codes.">
+<style>
+:root{--bg:#fbfaf7;--panel:#f0eee8;--text:#1f2328;--muted:#6b7077;--line:#dcd9d0;--accent:#0b6bcb;--btn:#fff;--fs:18px;--font:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+html[data-theme=dark]{--bg:#16181c;--panel:#1e2126;--text:#e6e8eb;--muted:#9aa0a8;--line:#2e3239;--accent:#6cb2ff;--btn:#262a30}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+body{display:flex;flex-direction:column;height:100dvh;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+header{background:var(--panel);border-bottom:1px solid var(--line)}
+.tools{display:flex;gap:6px;padding:8px 10px;overflow-x:auto;align-items:center;-webkit-overflow-scrolling:touch}
+.brand{font-weight:700;margin-right:6px;white-space:nowrap;letter-spacing:-.2px}
+.brand b{color:var(--accent)}
+button,select,input{font:inherit;color:var(--text)}
+button,select{background:var(--btn);border:1px solid var(--line);border-radius:6px;padding:7px 11px;min-height:36px;cursor:pointer;white-space:nowrap;touch-action:manipulation}
+button:hover,select:hover{border-color:var(--accent)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.sep{width:1px;height:22px;background:var(--line);flex:none;margin:0 2px}
+#find{display:flex;flex-wrap:wrap;gap:6px;padding:8px 10px;background:var(--panel);border-bottom:1px solid var(--line);align-items:center}
+#find input{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 10px;min-height:36px;flex:1 1 140px;min-width:0}
+#fcount{color:var(--muted);font-size:13px}
+main{flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch}
+#ed{min-height:100%;max-width:900px;margin:0 auto;padding:28px 22px 30vh;outline:none;white-space:pre-wrap;overflow-wrap:anywhere;tab-size:4;font-family:var(--font);font-size:var(--fs);line-height:1.6;-webkit-user-select:text;user-select:text}
+#ed:empty::before{content:attr(data-ph);color:var(--muted);pointer-events:none}
+#ed a{color:var(--accent);text-decoration:underline;cursor:pointer}
+::highlight(find){background:#ffd54a;color:#000}
+footer{display:flex;gap:14px;align-items:center;justify-content:space-between;padding:6px 12px;font-size:13px;color:var(--muted);background:var(--panel);border-top:1px solid var(--line);flex-wrap:wrap}
+#code{background:none;border:0;padding:2px 4px;min-height:0;color:var(--accent);font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:600}
+#modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:16px;z-index:10}
+.box{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:18px;width:100%;max-width:460px}
+.box h2{margin:0 0 4px;font-size:18px}
+.box p{margin:4px 0 12px;color:var(--muted);font-size:13px;line-height:1.45}
+.row{display:flex;gap:8px}
+.row input{flex:1;min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:16px}
+.end{display:flex;justify-content:flex-end;margin-top:14px}
+#toast{position:fixed;left:50%;bottom:56px;transform:translateX(-50%);background:#222;color:#fff;padding:8px 14px;border-radius:20px;font-size:14px;z-index:20;max-width:90vw}
+@media(max-width:560px){#ed{padding:18px 14px 30vh}}
+@media print{
+ header,#find,footer,#modal,#toast{display:none!important}
+ html,body{height:auto;display:block;background:#fff;color:#000}
+ main{overflow:visible}
+ #ed{max-width:none;padding:0;color:#000}#ed a{color:#000}
+}
+</style>
+</head>
+<body>
+<header>
+ <div class="tools">
+  <span class="brand">e<b>Text</b>Pad</span>
+  <button type="button" id="bNew">New</button>
+  <button type="button" id="bOpen">Open</button>
+  <button type="button" id="bSave">Save</button>
+  <button type="button" id="bCopy">Copy</button>
+  <button type="button" id="bPrint">Print</button>
+  <button type="button" id="bFind">Find</button>
+  <button type="button" id="bShare">Share</button>
+  <span class="sep"></span>
+  <select id="font" aria-label="Font family">
+   <option value="sans">Sans-serif</option>
+   <option value="serif">Serif</option>
+   <option value="mono">Monospace</option>
+  </select>
+  <button type="button" id="bSm" aria-label="Smaller text">A-</button>
+  <button type="button" id="bLg" aria-label="Larger text">A+</button>
+  <span class="sep"></span>
+  <button type="button" id="bTheme">Dark</button>
+  <button type="button" id="bFull">Fullscreen</button>
+ </div>
+ <input type="file" id="file" accept=".txt,.md,text/plain,text/markdown" hidden>
+</header>
+<div id="find" hidden>
+ <input type="text" id="fq" placeholder="Find" aria-label="Find" autocomplete="off">
+ <input type="text" id="fr" placeholder="Replace with" aria-label="Replace with" autocomplete="off">
+ <button type="button" id="fPrev">Prev</button>
+ <button type="button" id="fNext">Next</button>
+ <button type="button" id="fRep">Replace</button>
+ <button type="button" id="fAll">Replace all</button>
+ <button type="button" id="fClose" aria-label="Close find">Close</button>
+ <span id="fcount"></span>
+</div>
+<main id="sc"><div id="ed" spellcheck="true" role="textbox" aria-multiline="true" aria-label="Note" data-ph="Start typing. Your note saves automatically in this browser."></div></main>
+<footer>
+ <button type="button" id="code" title="Share this note">/</button>
+ <span id="stats">0 words &middot; 0 characters &middot; 1 line</span>
+ <span id="saved">Saved</span>
+</footer>
+<div id="modal" hidden>
+ <div class="box" role="dialog" aria-modal="true" aria-labelledby="mt">
+  <h2 id="mt">Share this note</h2>
+  <p>Anyone with this link can open and edit this note on any device. Don't store passwords or private data here.</p>
+  <div class="row"><input type="text" id="murl" readonly aria-label="Note link"><button type="button" id="mCopy">Copy</button></div>
+  <div class="end"><button type="button" id="mClose">Close</button></div>
+ </div>
+</div>
+<div id="toast" hidden></div>
+<script>
+(function(){
+'use strict';
+var $=function(id){return document.getElementById(id)};
+var ed=$('ed'),sc=$('sc'),K='etextpad.',ALPHA='abcdefghijklmnopqrstuvwxyz0123456789';
+var code='',composing=false,saveT=0,linkT=0,toastT=0,last=null,pos=0;
+var FONTS={sans:'system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif',serif:'Georgia,"Times New Roman",Times,serif',mono:'ui-monospace,SFMono-Regular,Menlo,Consolas,"Courier New",monospace'};
+var URL_RE=/https?:\/\/[^\s<>"']+|www\.[a-z0-9-]+(?:\.[a-z0-9-]+)+[^\s<>"']*/gi;
+
+var store={
+ get:function(k){try{return localStorage.getItem(k)}catch(e){return null}},
+ set:function(k,v){try{localStorage.setItem(k,v);return true}catch(e){return false}}
+};
+
+/* ---------- preferences ---------- */
+var prefs={font:'sans',size:18,theme:window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'};
+try{var p=JSON.parse(store.get(K+'prefs')||'{}');for(var k in p)prefs[k]=p[k]}catch(e){}
+function applyPrefs(){
+ if(!FONTS[prefs.font])prefs.font='sans';
+ prefs.size=Math.min(36,Math.max(12,+prefs.size||18));
+ document.documentElement.setAttribute('data-theme',prefs.theme);
+ document.documentElement.style.setProperty('--fs',prefs.size+'px');
+ document.documentElement.style.setProperty('--font',FONTS[prefs.font]);
+ $('font').value=prefs.font;
+ $('bTheme').textContent=prefs.theme==='dark'?'Light':'Dark';
+ store.set(K+'prefs',JSON.stringify(prefs));
+}
+
+/* ---------- helpers ---------- */
+function toast(msg){
+ var t=$('toast');t.textContent=msg;t.hidden=false;
+ clearTimeout(toastT);toastT=setTimeout(function(){t.hidden=true},1800);
+}
+function getText(){return ed.innerText.replace(/\u00a0/g,' ')}
+function genCode(){
+ var s='',b=new Uint8Array(32),i;
+ while(s.length<7){
+  if(window.crypto&&crypto.getRandomValues){crypto.getRandomValues(b)}else{for(i=0;i<32;i++)b[i]=Math.floor(Math.random()*256)}
+  for(i=0;i<32&&s.length<7;i++){if(b[i]<252)s+=ALPHA.charAt(b[i]%36)}
+ }
+ return s;
+}
+function stats(){
+ var t=getText(),w=(t.match(/\S+/g)||[]).length,l=t?t.split('\n').length:1;
+ $('stats').textContent=w+(w===1?' word':' words')+' \u00b7 '+t.length+(t.length===1?' character':' characters')+' \u00b7 '+l+(l===1?' line':' lines');
+}
+function copyText(t){
+ function fb(){
+  var a=document.createElement('textarea');a.value=t;a.style.cssText='position:fixed;top:0;left:0;opacity:0';a.setAttribute('readonly','');
+  document.body.appendChild(a);a.select();a.setSelectionRange(0,a.value.length);
+  var ok=false;try{ok=document.execCommand('copy')}catch(e){}
+  document.body.removeChild(a);return ok;
+ }
+ if(navigator.clipboard&&window.isSecureContext){
+  return navigator.clipboard.writeText(t).then(function(){return true},function(){return fb()});
+ }
+ return Promise.resolve(fb());
+}
+
+/* ---------- caret helpers (by text-node character offset) ---------- */
+function caretOffset(){
+ var s=getSelection();
+ if(!s.rangeCount||!ed.contains(s.anchorNode))return null;
+ var r=s.getRangeAt(0),pre=document.createRange();
+ pre.selectNodeContents(ed);pre.setEnd(r.endContainer,r.endOffset);
+ return pre.toString().length;
+}
+function rangeFor(start,end){
+ var w=document.createTreeWalker(ed,NodeFilter.SHOW_TEXT,null),n,acc=0,r=document.createRange(),gotS=false;
+ while((n=w.nextNode())){
+  var len=n.nodeValue.length;
+  if(!gotS&&start<=acc+len){r.setStart(n,start-acc);gotS=true}
+  if(gotS&&end<=acc+len){r.setEnd(n,end-acc);return r}
+  acc+=len;
+ }
+ r.selectNodeContents(ed);r.collapse(false);return r;
+}
+function setCaret(off){
+ var r=rangeFor(off,off),s=getSelection();r.collapse(true);
+ s.removeAllRanges();s.addRange(r);
+}
+
+/* ---------- auto links ---------- */
+function trimUrl(u){return u.replace(/[.,;:!?'")\]}>]+$/,'')}
+function hrefFor(u){return /^https?:\/\//i.test(u)?u:'https://'+u}
+function linkify(){
+ if(composing)return;
+ var off=caretOffset(),changed=false,w,n,list=[];
+ var as=ed.querySelectorAll('a');
+ for(var i=0;i<as.length;i++){
+  var a=as[i],t=a.textContent;URL_RE.lastIndex=0;
+  var m=URL_RE.exec(t);
+  if(m&&m.index===0&&trimUrl(m[0])===t){
+   var h=hrefFor(t);if(a.getAttribute('href')!==h)a.setAttribute('href',h);
+  }else{a.replaceWith(document.createTextNode(t));changed=true}
+ }
+ if(changed)ed.normalize();
+ w=document.createTreeWalker(ed,NodeFilter.SHOW_TEXT,null);
+ while((n=w.nextNode())){if(!n.parentNode.closest('a')){URL_RE.lastIndex=0;if(URL_RE.test(n.nodeValue))list.push(n)}}
+ list.forEach(function(node){
+  var txt=node.nodeValue,frag=document.createDocumentFragment(),lastIdx=0,m2;
+  URL_RE.lastIndex=0;
+  while((m2=URL_RE.exec(txt))){
+   var u=trimUrl(m2[0]);if(!u)continue;
+   if(m2.index>lastIdx)frag.appendChild(document.createTextNode(txt.slice(lastIdx,m2.index)));
+   var el=document.createElement('a');el.textContent=u;el.href=hrefFor(u);el.target='_blank';el.rel='noopener noreferrer';
+   frag.appendChild(el);lastIdx=m2.index+u.length;URL_RE.lastIndex=lastIdx;
+  }
+  if(lastIdx<txt.length)frag.appendChild(document.createTextNode(txt.slice(lastIdx)));
+  node.replaceWith(frag);changed=true;
+ });
+ if(changed&&off!==null)setCaret(off);
+}
+function setText(t){
+ ed.textContent=t;
+ if(!t)ed.innerHTML='';
+ linkify();stats();
+}
+function flatten(){
+ if(ed.querySelector('div,br,p')){var t=getText();ed.textContent=t;linkify()}
+}
+
+/* ---------- saving ---------- */
+function save(){
+ clearTimeout(saveT);
+ if(!code)return;
+ var ok=store.set(K+'note.'+code,getText());
+ store.set(K+'last',code);
+ $('saved').textContent=ok?'Saved':'Not saved (storage unavailable)';
+ dirty=true;clearTimeout(pushT);pushT=setTimeout(push,600);
+}
+/* ---------- cloud sync (Netlify Function + Blobs) ---------- */
+var API='/.netlify/functions/note?code=',dirty=false,pushT=0,lastEdit=0;
+function getRev(){return +store.get(K+'rev.'+code)||0}
+function push(){
+ clearTimeout(pushT);
+ var c=code,t=getText();
+ if(!t&&!getRev())return;
+ fetch(API+c,{method:'PUT',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({text:t})})
+ .then(function(r){if(!r.ok)throw 0;return r.json()})
+ .then(function(d){store.set(K+'rev.'+c,d.rev);if(c===code){dirty=false;$('saved').textContent='Synced'}})
+ .catch(function(){if(c===code)$('saved').textContent='Saved locally (sync failed)'});
+}
+function pull(initial){
+ var c=code;
+ return fetch(API+c,{cache:'no-store'}).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(d){
+  if(c!==code||!d||typeof d.text!=='string')return;
+  if(d.rev>getRev()){
+   if(d.text!==getText()&&(initial||(!dirty&&Date.now()-lastEdit>3000))){
+    var off=caretOffset();setText(d.text);store.set(K+'note.'+c,d.text);
+    if(off!==null&&!initial)setCaret(Math.min(off,d.text.length));
+   }
+   store.set(K+'rev.'+c,d.rev);
+  }
+ }).catch(function(){});
+}
+function syncInit(){pull(true).then(function(){if(!getRev()&&getText())push()})}
+setInterval(function(){if(!document.hidden&&code)pull(false)},5000);
+function scheduleSave(){
+ lastEdit=Date.now();$('saved').textContent='Saving\u2026';
+ clearTimeout(saveT);saveT=setTimeout(save,300);
+}
+function onChange(){stats();scheduleSave()}
+
+/* ---------- note code & URL ---------- */
+function codeFromLocation(){
+ var m=location.pathname.match(/^\/([a-z0-9]{7})\/?$/i)||location.hash.match(/^#\/?([a-z0-9]{7})$/i);
+ return m?m[1].toLowerCase():null;
+}
+function setUrl(c,push){
+ var done=false;
+ try{
+  if(/^https?:$/.test(location.protocol)){
+   history[push?'pushState':'replaceState']({code:c},'','/'+c);done=true;
+  }
+ }catch(e){}
+ if(!done){
+  try{history[push?'pushState':'replaceState']({code:c},'','#'+c)}catch(e){location.hash=c}
+ }
+}
+function showCode(){$('code').textContent='/'+code}
+function openCode(c,push,fresh){
+ if(code&&code!==c)save();
+ code=c;
+ setText(fresh?'':(store.get(K+'note.'+c)||''));
+ setUrl(c,push);showCode();
+ if(fresh)save();else syncInit();
+}
+function newNote(){
+ var c;do{c=genCode()}while(store.get(K+'note.'+c)!==null);
+ openCode(c,true,true);
+ ed.focus();
+}
+
+/* ---------- editor events ---------- */
+try{ed.contentEditable='plaintext-only'}catch(e){}
+if(ed.contentEditable!=='plaintext-only')ed.contentEditable='true';
+var plainOnly=ed.contentEditable==='plaintext-only';
+
+ed.addEventListener('input',function(){
+ if(!ed.textContent)ed.innerHTML='';
+ onChange();
+ clearTimeout(linkT);linkT=setTimeout(linkify,250);
+});
+ed.addEventListener('compositionstart',function(){composing=true});
+ed.addEventListener('compositionend',function(){composing=false;clearTimeout(linkT);linkT=setTimeout(linkify,250)});
+ed.addEventListener('beforeinput',function(e){
+ if(!plainOnly&&(e.inputType==='insertParagraph'||e.inputType==='insertLineBreak')){
+  e.preventDefault();document.execCommand('insertText',false,'\n');
+ }
+});
+ed.addEventListener('keydown',function(e){
+ if(e.key==='Tab'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey){
+  e.preventDefault();document.execCommand('insertText',false,'\t');
+ }
+});
+ed.addEventListener('paste',function(e){
+ var cd=e.clipboardData;
+ if(cd&&cd.getData){
+  e.preventDefault();
+  var t=cd.getData('text/plain').replace(/\r\n?/g,'\n');
+  if(!document.execCommand('insertText',false,t)){
+   var s=getSelection();if(s.rangeCount){var r=s.getRangeAt(0);r.deleteContents();r.insertNode(document.createTextNode(t));r.collapse(false)}
+   onChange();
+  }
+ }
+});
+ed.addEventListener('click',function(e){
+ var a=e.target.closest&&e.target.closest('a');
+ if(a&&ed.contains(a)){
+  e.preventDefault();
+  window.open(a.href,'_blank','noopener,noreferrer');
+ }
+});
+document.addEventListener('keydown',function(e){
+ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){e.preventDefault();saveFile()}
+ if(e.key==='Escape'){if(!$('modal').hidden)closeModal();else if(!$('find').hidden)closeFind()}
+});
+window.addEventListener('pagehide',function(){save();push()});
+document.addEventListener('visibilitychange',function(){if(document.hidden){save();push()}});
+function onNav(){var c=codeFromLocation();if(c&&c!==code)openCode(c,false,false)}
+window.addEventListener('popstate',onNav);
+window.addEventListener('hashchange',onNav);
+
+/* ---------- toolbar actions ---------- */
+function saveFile(){
+ var t=getText(),b=new Blob([t],{type:'text/plain;charset=utf-8'}),u=URL.createObjectURL(b),a=document.createElement('a');
+ a.href=u;a.download='etextpad-'+code+'.txt';document.body.appendChild(a);a.click();
+ setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(u)},500);
+ toast('Saved as .txt');
+}
+$('bNew').addEventListener('click',newNote);
+$('bOpen').addEventListener('click',function(){$('file').value='';$('file').click()});
+$('file').addEventListener('change',function(){
+ var f=this.files&&this.files[0];if(!f)return;
+ if(getText().trim()&&!confirm('Replace the current note with "'+f.name+'"?'))return;
+ var r=new FileReader();
+ r.onload=function(){setText(String(r.result).replace(/\r\n?/g,'\n'));save();toast('Opened '+f.name)};
+ r.onerror=function(){toast('Could not read that file')};
+ r.readAsText(f);
+});
+$('bSave').addEventListener('click',saveFile);
+$('bCopy').addEventListener('click',function(){
+ copyText(getText()).then(function(ok){toast(ok?'Note copied':'Copy failed')});
+});
+$('bPrint').addEventListener('click',function(){window.print()});
+$('font').addEventListener('change',function(){prefs.font=this.value;applyPrefs()});
+$('bSm').addEventListener('click',function(){prefs.size-=2;applyPrefs()});
+$('bLg').addEventListener('click',function(){prefs.size+=2;applyPrefs()});
+$('bTheme').addEventListener('click',function(){prefs.theme=prefs.theme==='dark'?'light':'dark';applyPrefs()});
+$('bFull').addEventListener('click',function(){
+ var d=document,el=d.documentElement;
+ if(d.fullscreenElement||d.webkitFullscreenElement){(d.exitFullscreen||d.webkitExitFullscreen).call(d)}
+ else if(el.requestFullscreen||el.webkitRequestFullscreen){
+  var p=(el.requestFullscreen||el.webkitRequestFullscreen).call(el);
+  if(p&&p.catch)p.catch(function(){toast('Fullscreen is not available here')});
+ }else toast('Fullscreen is not supported on this device');
+});
+
+/* ---------- share modal ---------- */
+function openModal(){$('murl').value=location.href;$('mCopy').textContent='Copy';$('modal').hidden=false}
+function closeModal(){$('modal').hidden=true}
+$('bShare').addEventListener('click',openModal);
+$('code').addEventListener('click',openModal);
+$('mClose').addEventListener('click',closeModal);
+$('modal').addEventListener('click',function(e){if(e.target===this)closeModal()});
+$('murl').addEventListener('focus',function(){this.select()});
+$('mCopy').addEventListener('click',function(){
+ var btn=this,inp=$('murl');
+ copyText(inp.value).then(function(ok){
+  btn.textContent=ok?'Copied!':'Press Ctrl+C';
+  if(!ok){inp.focus();inp.select()}
+  setTimeout(function(){btn.textContent='Copy'},1800);
+ });
+});
+
+/* ---------- find & replace ---------- */
+function clearHl(){if(window.CSS&&CSS.highlights)CSS.highlights.delete('find')}
+function closeFind(){$('find').hidden=true;clearHl();last=null;$('fcount').textContent=''}
+function countMatches(){
+ var q=$('fq').value.toLowerCase();if(!q)return 0;
+ var t=ed.textContent.toLowerCase(),c=0,i=0;
+ while((i=t.indexOf(q,i))!==-1){c++;i+=q.length}
+ return c;
+}
+function findStep(dir){
+ var q=$('fq').value;
+ if(!q){$('fcount').textContent='';return false}
+ flatten();
+ var t=ed.textContent.toLowerCase(),lq=q.toLowerCase(),i;
+ if(dir>0){i=t.indexOf(lq,pos);if(i<0)i=t.indexOf(lq,0)}
+ else{i=pos-1<0?-1:t.lastIndexOf(lq,pos-1);if(i<0)i=t.lastIndexOf(lq)}
+ var n=countMatches();
+ $('fcount').textContent=n?n+(n===1?' match':' matches'):'No matches';
+ if(i<0){last=null;clearHl();return false}
+ last={s:i,e:i+q.length};pos=dir>0?last.e:last.s;
+ var r=rangeFor(last.s,last.e),s=getSelection();
+ s.removeAllRanges();s.addRange(r);
+ if(window.CSS&&CSS.highlights&&window.Highlight)CSS.highlights.set('find',new Highlight(r));
+ var rc=r.getBoundingClientRect(),mr=sc.getBoundingClientRect();
+ if(rc.top<mr.top+20||rc.bottom>mr.bottom-20)sc.scrollTop+=rc.top-mr.top-mr.height/3;
+ return true;
+}
+function replaceOne(){
+ var q=$('fq').value;if(!q)return;
+ flatten();
+ var t=ed.textContent;
+ if(last&&t.slice(last.s,last.e).toLowerCase()===q.toLowerCase()){
+  var rep=$('fr').value;
+  setText(t.slice(0,last.s)+rep+t.slice(last.e));
+  pos=last.s+rep.length;last=null;onChange();
+ }
+ findStep(1);
+}
+function replaceAll(){
+ var q=$('fq').value;if(!q)return;
+ flatten();
+ var re=new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi'),t=ed.textContent,n=0,rep=$('fr').value;
+ var out=t.replace(re,function(){n++;return rep});
+ if(n){setText(out);onChange();pos=0;last=null;clearHl()}
+ $('fcount').textContent=n?'Replaced '+n:'No matches';
+}
+$('bFind').addEventListener('click',function(){
+ var f=$('find');
+ if(!f.hidden){closeFind();return}
+ f.hidden=false;
+ var s=String(getSelection()||'');if(s&&s.length<80&&s.indexOf('\n')<0)$('fq').value=s;
+ pos=0;$('fq').focus();
+});
+$('fClose').addEventListener('click',closeFind);
+$('fNext').addEventListener('click',function(){findStep(1)});
+$('fPrev').addEventListener('click',function(){findStep(-1)});
+$('fRep').addEventListener('click',replaceOne);
+$('fAll').addEventListener('click',replaceAll);
+$('fq').addEventListener('input',function(){pos=0;last=null;clearHl();flatten();var n=countMatches();$('fcount').textContent=this.value?(n?n+(n===1?' match':' matches'):'No matches'):''});
+$('fq').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();findStep(e.shiftKey?-1:1)}});
+$('fr').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();replaceOne()}});
+
+/* ---------- start ---------- */
+applyPrefs();
+(function init(){
+ var c=codeFromLocation();
+ if(c){code=c;setText(store.get(K+'note.'+c)||'');setUrl(c,false);showCode();syncInit()}
+ else{do{c=genCode()}while(store.get(K+'note.'+c)!==null);openCode(c,false,true)}
+})();
+})();
+</script>
+</body>
+</html>
